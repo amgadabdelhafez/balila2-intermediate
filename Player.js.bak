@@ -1,0 +1,316 @@
+class Player {
+  constructor() {
+    // Code here would be executed once at the start of each level
+    this.debug = true;
+    // this.debug = false;
+    this.health = 20;
+
+    this.enemiesBound = (function() {
+      var _bound = [];
+      return {
+        getAll: function() {
+          return _bound;
+        },
+        getIndex: function(index) {
+          return bound[index];
+        },
+        total: function() {
+          return _bound.length;
+        },
+        add: function(s) {
+          _bound.push(s);
+        },
+        increase: function() {
+          _bound.push('');
+        },
+        diff: function(a) {
+          return _bound.filter(function(i) {return a.indexOf(i) < 0;});
+        },
+        // remove: function(s) {
+        //   let a = _bound.filter(f => f != s);
+        //   _bound = a;
+        // },
+      };
+    })();
+
+    this.around = {forward:'forward', backward:'backward', left:'left', right:'right'};
+  }
+
+  canRescue(warrior){
+    //return direction to rescue
+    if (this.findCaptives(warrior)) {
+      if (this.numberOfEnemies(warrior) <= 3 ) {
+        //if not blocked
+        return (this.findCaptives(warrior)[0]);
+      }
+      //if blocked, try to walk around obstacle
+      else if (warrior.feel(this.isTicking(warrior)).isEmpty()) {
+        return (this.isTicking(warrior));
+      }
+      else if (warrior.feel('right').isEmpty()) {
+        return ('right');
+      }
+      else if (warrior.feel('left').isEmpty()) {
+        return ('left');
+      }
+      else if (warrior.feel('forward').isEmpty()) {
+        return ('forward');
+      }
+    }
+    else {
+      return false;
+    }
+  }
+
+  canDetonate(warrior){
+    if (!this.isInjured(warrior) && this.isTicking(warrior)){
+      if (this.getEnemiesDirections(warrior).forward || warrior.feel('backward').isWall() ) {
+        return 'forward';
+      }
+      else {
+        return 'backward';
+      }
+    }
+    else {
+      return false;
+    }
+  }
+
+  canRest(warrior){
+    if (this.isInjured(warrior)) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  canAttack(warrior){
+    if (!this.isInjured(warrior) && !this.isTicking(warrior) && this.listenToEnemies(warrior).length) {
+      return this.findEnemies(warrior).filter(d => d != this.enemiesBound)[this.enemiesBound.length]
+    }
+    else {
+      return false;
+    }
+  }
+
+  canWalkToEnemy(warrior){
+    if (!this.isInjured(warrior) && !this.isTicking(warrior) && this.numberOfEnemies(warrior)) {
+      return this.getEnemyLocations(warrior).find(loc => loc.distance == 2).direction;
+    }
+    else {
+      return false;
+    }
+  }
+
+  canWalkToStairs(warrior){
+    if (!this.numberOfEnemies(warrior)) {
+      return warrior.directionOfStairs();
+    }
+    else {
+      return false;
+    }
+  }
+
+  arrayDiff(warrior, arr1, arr2){
+    let diffs;
+    if (arr2) {
+      diffs = arr1.filter(function(obj) {
+        return !arr2.some(function(obj2) {
+            return obj == obj2;
+        });
+    })
+    }
+    else {
+      diffs = arr1
+    }
+  return diffs;
+}
+
+canBind(warrior){
+  warrior.think('this.isTakingDamage(warrior) ' + this.isTakingDamage(warrior))
+  warrior.think('this.findEnemies(warrior).length ' + this.findEnemies(warrior).length)
+  warrior.think('this.enemiesBound.total()  ' + this.enemiesBound.total())
+
+  if (this.isTakingDamage(warrior) && this.findEnemies(warrior).length >= 3 ) {
+    if (this.findEnemies(warrior).length > this.enemiesBound.total()) {
+      let _res = this.arrayDiff(warrior, this.findEnemies(warrior), this.enemiesBound.getAll())[0];
+      warrior.think('_res ' + _res)
+      // return _res;
+      warrior.think('return ' + this.findEnemies(warrior)[this.enemiesBound.total()])
+      return this.findEnemies(warrior)[this.enemiesBound.total()]
+    }
+  }
+  else {
+    return false;
+  }
+}
+
+  playTurn(warrior) {
+    //calc next move
+
+    let cb = this.canBind(warrior);
+
+    // bind
+    if (cb) {
+      warrior.think('this.canBind(warrior) ' + cb);
+      warrior.bind(cb);
+      this.enemiesBound.increase();
+    }
+    //rescue
+    else if (this.canRescue(warrior)) {
+      if (this.debug) warrior.think('can resscue ' + this.canRescue(warrior));
+      warrior.rescue(this.canRescue(warrior));
+    }
+
+    //detonate
+    else if (this.canDetonate(warrior)){
+      if (this.debug) warrior.think('can detonate ' + this.canDetonate(warrior));
+      warrior.detonate(this.canDetonate(warrior));
+    }
+    //attack
+    else if (this.canAttack(warrior)){
+      if (this.debug) warrior.think('can attack ' + this.canAttack(warrior));
+      warrior.attack(this.canAttack(warrior));
+      warrior.think('this.enemiesBound.filter(d => ' + this.canAttack(warrior) + ') =' + this.enemiesBound.filter(d =>  d != this.canAttack(warrior)))
+      this.enemiesBound = this.enemiesBound.filter(d => d != this.canAttack(warrior));
+    }
+    else if (this.canWalkToStairs(warrior)) {
+      warrior.walk(this.canWalkToStairs(warrior));
+    }
+    //rest
+    else if (this.canRest(warrior)){
+      warrior.rest();
+    }
+    //walk to enemey
+    else if (this.canWalkToEnemy(warrior)) {
+      warrior.walk(this.canWalkToEnemy(warrior));
+    }
+
+    this.health = warrior.health()
+  }
+
+  //what is this again?
+  isSomething(warrior){
+    return (this.lookForEnemies(warrior).length >= 2 &&
+    warrior.health() >= 4 &&
+    !warrior.feel().isEmpty() );
+  }
+
+  isTicking(warrior){
+    const spaceWithUnit = warrior.listen().find(space => space.isUnit() && space.getUnit().isUnderEffect('ticking'));
+    // warrior.think('ticking location ' + warrior.listen().find(space => space.isUnit() && space.getUnit().isUnderEffect('ticking')).getLocation());
+    // warrior.think('ticking direction ' + warrior.directionOf(warrior.listen().find(space => space.isUnit() && space.getUnit().isUnderEffect('ticking'))));
+    // warrior.think('warrior.directionOf(spaceWithUnit) ' + warrior.directionOf(spaceWithUnit));
+    return spaceWithUnit ? warrior.directionOf(spaceWithUnit) : false;
+  }
+
+  findCaptives(warrior){
+    var captives = [];
+    for (var direction in this.around) {
+      if (this.isCaptiveInSight(warrior)[direction])
+      captives.push(direction);
+    }
+    return captives;
+  }
+
+  isPathClear(warrior) {
+    var forwardIsClear = warrior.feel('forward').isEmpty();
+    var leftIsClear = warrior.feel('left').isEmpty();
+    var rightIsClear = warrior.feel('right').isEmpty();
+    var isCaptiveAhead = warrior.feel().isUnit() ? warrior.feel().getUnit().isBound() : false;
+    return forwardIsClear || leftIsClear || rightIsClear || isCaptiveAhead;
+  }
+
+  isCaptiveInSight(warrior) {
+    return {
+      'forward': warrior.feel('forward').isUnit() ? (warrior.feel('forward').getUnit().isEnemy() ? false : warrior.feel('forward').getUnit().isBound() ) : false,
+      'backward': warrior.feel('backward').isUnit() ? (warrior.feel('backward').getUnit().isEnemy() ? false : warrior.feel('backward').getUnit().isBound() ) : false,
+      'left': warrior.feel('left').isUnit() ? (warrior.feel('left').getUnit().isEnemy() ? false : warrior.feel('left').getUnit().isBound() ) : false,
+      'right': warrior.feel('right').isUnit() ? (warrior.feel('right').getUnit().isEnemy() ? false : warrior.feel('right').getUnit().isBound() ) : false
+    };
+  }
+
+  isTakingDamage(warrior) {
+    return Boolean(warrior.health() < this.health);
+  }
+
+  isClearToStairs(warrior){
+    return warrior.feel(warrior.directionOfStairs()).isEmpty();
+  }
+
+  lookForEnemies(warrior) {
+    const spacesWithEnemies = warrior.look().filter(space => space.isUnit() && space.getUnit().isEnemy());
+    return spacesWithEnemies;
+  }
+
+  listenToEnemies(warrior) {
+    const spacesWithEnemies = warrior.listen().filter(space => space.isUnit() && space.getUnit().isEnemy());
+    return spacesWithEnemies;
+  }
+
+  findEnemies(warrior){
+    var enemies = [];
+    for (var direction in this.around) {
+      if (this.getEnemiesDirections(warrior)[direction])
+      enemies.push(direction);
+    }
+    return enemies;
+  }
+
+  getEnemyLocations(warrior){
+    var enemies = [];
+    for (var i = 0; i <= this.listenToEnemies(warrior).length - 1; i++) {
+      enemies.push( {'distance': warrior.distanceOf(this.listenToEnemies(warrior)[i]),'direction': warrior.directionOf(this.listenToEnemies(warrior)[i])});
+    }
+    enemies.sort( (a, b) => a.distance - b.distance);
+    return enemies;
+  }
+
+  getEnemiesDirections(warrior) {
+    return {
+      'forward': warrior.feel('forward').isUnit() ? warrior.feel('forward').getUnit().isEnemy() : false ,
+      'backward': warrior.feel('backward').isUnit() ? warrior.feel('backward').getUnit().isEnemy() : false ,
+      'left': warrior.feel('left').isUnit() ? warrior.feel('left').getUnit().isEnemy() : false ,
+      'right': warrior.feel('right').isUnit() ? warrior.feel('right').getUnit().isEnemy() : false ,
+    };
+  }
+
+  numberOfEnemies(warrior){
+    var spacesWithUnits = warrior.listen();
+    var i = 0;
+    var numEnemies = 0
+    while (i < spacesWithUnits.length) {
+      if (spacesWithUnits[i].getUnit().isEnemy()) {
+        numEnemies++;
+      }
+      i++;
+      // spacesWithUnits[i].getUnit().isEnemy() ? numEnemies++ : '';
+    }
+    return numEnemies;
+  }
+
+  isInjured(warrior) {
+    return Boolean(warrior.health() < 20);
+  }
+
+  // listenToUnits(warrior){
+  //   var spacesWithUnits = warrior.listen();
+  //   var i = 0;
+  //   while (i < spacesWithUnits.length) {
+  //
+  //     warrior.think('spacesWithUnits[i].getLocation() ' + spacesWithUnits[i].getLocation());
+  //     warrior.think('spacesWithUnits[i].isUnit() ' + spacesWithUnits[i].isUnit());
+  //
+  //     warrior.think('spacesWithUnits[i].getUnit() ' + spacesWithUnits[i].getUnit());
+  //     warrior.think('spacesWithUnits[i].getUnit().isBound() ' + spacesWithUnits[i].getUnit().isBound());
+  //
+  //     warrior.think('spacesWithUnits[i].getUnit().isEnemy() ' + spacesWithUnits[i].getUnit().isEnemy());
+  //     warrior.think('spacesWithUnits[i].getUnit().isUnderEffect(ticking) ' + spacesWithUnits[i].getUnit().isUnderEffect('ticking'));
+  //
+  //     warrior.think('warrior.directionOf(spacesWithUnits[i]) ' + warrior.directionOf(spacesWithUnits[i]));
+  //     i++;
+  //   }
+  // }
+
+}
